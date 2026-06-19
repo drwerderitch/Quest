@@ -2595,6 +2595,17 @@ function App(){
           React.createElement('button',{onClick:function(){
             const boss=generateBoss(questPlayersFromQuest,activeQuest&&activeQuest.holeTags||[]);
             _setAndSaveQuests(qs=>qs.map(q=>q.id===activeQuestId?{...q,boss}:q));
+            // Engage directly — don't wait for activeBoss state to settle
+            const bossCard={title:boss.name,tags:"Universal",flavor:boss.flavor,
+              effect:boss.mechanic+"\n\n🛡 Spend a token to ignore the boss mechanic on any single throw.",
+              success:"Boss takes damage.",fail:"Boss takes damage and hits back.",
+              isBossCard:true,bossId:boss.id,bossIcon:boss.icon,bossColor:boss.color,
+              hitBackTitle:boss.hitBackTitle,hitBackEffect:boss.hitBackEffect};
+            const init={};
+            questPlayersFromQuest.forEach(function(p){init[p.id]=0;});
+            setHoleScores(init);setPartyScoreAdj(0);
+            setActiveAdventureCard({card:bossCard,meta:{},scores:init,partyScoreAdj:0,isConsequence:false,isBoss:true});
+            setCard(bossCard);setCardDeck("boss");setCardMeta({});setCardPhase("score");
             setShowTestCenter(false);
           },style:{width:"100%",padding:"18px",background:C.red+"18",border:"4px solid "+C.red,borderRadius:0,color:C.red,fontFamily:BF,fontSize:"15px",cursor:"pointer",marginBottom:"12px",letterSpacing:2}},"👹 TEST BOSS — GENERATE + ENGAGE"),
           React.createElement('button',{onClick:function(){
