@@ -495,9 +495,9 @@ function ClassDetail({cls,onSelect,onBack}){
 function CardOverlay({
   card,deck,onDismiss,onAction,questPlayers,phase,setPhase,
   holeScores,setHoleScores,cardMeta,setCardMeta,
-  // props that were previously missing (caused crashes):
   drawBoon,drawPeril,applyGoldToAll,applyGoldToPlayer,applyTokensToAll,
-  setPlayerField,questPlayersFromQuest,activeQuestId,setAndSaveQuests
+  setPlayerField,questPlayersFromQuest,activeQuestId,setAndSaveQuests,
+  openMerchant
 }){
   const ds={
     adventure:{border:C.gold,accent:C.gold,label:"ENCOUNTER"},
@@ -680,6 +680,11 @@ function CardOverlay({
         ),
         badge("Held — activates only on party failure",C.red)
       )
+    );
+
+    if(t==="The Traveling Merchant") return React.createElement(React.Fragment,null,
+      sectionHdr("BEFORE THROWING — BROWSE WARES"),
+      React.createElement('button',{onClick:function(){if(openMerchant)openMerchant();},style:{width:"100%",padding:"14px",background:C.gold+"18",border:"3px solid "+C.gold,borderRadius:0,color:C.gold,fontFamily:BF,fontSize:"14px",cursor:"pointer",letterSpacing:1}},"🧳 OPEN THE MERCHANT'S PACK")
     );
 
     return null;
@@ -1027,6 +1032,7 @@ function App(){
   const [campDiscBuy,setCampDiscBuy]=useState(null);
   const [showBoss,setShowBoss]=useState(false);
   const [showTestCenter,setShowTestCenter]=useState(false);
+  const [merchantWares,setMerchantWares]=useState(null); // null or {items:[...], assignPid:null}
   const [scorecardEdit,setScorecardEdit]=useState(null);
   const [showBossPopup,setShowBossPopup]=useState(false);
   const _loadBestiary=()=>{try{return JSON.parse(localStorage.getItem("dgd_bestiary")||"[]");}catch(e){return[];}};
@@ -1058,6 +1064,14 @@ function App(){
 
   const activeQuest=quests.find(q=>q.id===activeQuestId)||null;
   const activeBoss=(activeQuest&&activeQuest.boss)||null;
+  // Derive displayed round number from actual score history rather than stored counter
+  const displayRound=(()=>{
+    if(!activeQuest) return 1;
+    const qps=allPlayers.filter(p=>(activeQuest.playerIds||[]).includes(p.id));
+    const rounds=new Set();
+    qps.forEach(p=>(p.scoreHistory||[]).filter(r=>r.questId===activeQuest.id).forEach(r=>rounds.add(r.roundNumber)));
+    return Math.max(1,rounds.size);
+  })();
   const bossDefeatedThisSession=(activeQuest&&activeQuest.bossDefeatedThisSession)||false;
   const hole=(activeQuest&&activeQuest.hole)||1;
   const perils=(activeQuest&&activeQuest.perils)||[];
@@ -1297,6 +1311,12 @@ function App(){
     return Object.assign({},c,v,{variants:undefined});
   }
   function draw(dk,setDk,src){let d=dk.length?dk:shuffle(src);if(!dk.length)setDk(d);const c=d[0];setDk(d.slice(1));return resolveVariant(c);}
+  function openMerchant(){
+    // Peek at top 3 treasure cards without consuming them
+    const deck=tD.length>=3?tD:[...tD,...shuffle(TREASURE_CARDS)];
+    const items=deck.slice(0,3).map(function(c){return resolveVariant({...c});});
+    setMerchantWares({items,assignItem:null});
+  }
 
   function tapDeck(type){
     if(type==="adventure"){
@@ -1794,7 +1814,7 @@ function App(){
         React.createElement('div',{style:{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"14px 16px",borderBottom:`3px solid ${C.borderBright}`,background:C.bgDark}},
           React.createElement('div',{style:{fontFamily:BF,fontSize:"15px",color:C.gold,textShadow:OLH}},"SCORECARD"),
           React.createElement('div',{style:{display:"flex",gap:"8px",alignItems:"center"}},
-            React.createElement('div',{style:{fontFamily:BF,fontSize:"12px",color:C.grey}},"Round ",(sq&&sq.currentRound)||1," · ",(sq&&sq.startDate)||""),
+            React.createElement('div',{style:{fontFamily:BF,fontSize:"12px",color:C.grey}},"Round ",(()=>{const rs=new Set();sqps.forEach(p=>(p.scoreHistory||[]).filter(r=>r.questId===scorecardQuestId).forEach(r=>rs.add(r.roundNumber)));return Math.max(1,rs.size);})()," · ",(sq&&sq.startDate)||""),
             React.createElement('button',{onClick:exportScorecard,style:{padding:"6px 12px",background:"transparent",border:`2px solid ${C.teal}`,borderRadius:0,color:C.teal,fontFamily:BF,fontSize:"13px",cursor:"pointer"}},"📋 EXPORT"),
             React.createElement('button',{onClick:()=>{setScorecardQuestId(null);setScorecardEdit(null);},style:{padding:"6px 12px",background:"transparent",border:`2px solid ${C.borderBright}`,borderRadius:0,color:C.gold,fontFamily:BF,fontSize:"13px",cursor:"pointer"}},"CLOSE")
           )
@@ -1916,6 +1936,7 @@ function App(){
       drawBoon,drawPeril,
       applyGoldToAll,applyGoldToPlayer,applyTokensToAll,setPlayerField,
       questPlayersFromQuest,activeQuestId,setAndSaveQuests:_setAndSaveQuests,
+      openMerchant,
     }),
 
     // Draw queue
@@ -2439,7 +2460,7 @@ function App(){
                 return React.createElement(Panel,{key:q.id},
                   React.createElement('div',{style:{display:"flex",justifyContent:"space-between",alignItems:"flex-start"}},
                     React.createElement('div',{style:{flex:1,cursor:"pointer"},onClick:()=>resumeQuest(q)},
-                      React.createElement('div',{style:{fontFamily:BF,fontSize:"15px",color:C.gold,marginBottom:"2px"}},"Round ",(q.currentRound||1)," · Hole ",q.hole,"/9"),
+                      React.createElement('div',{style:{fontFamily:BF,fontSize:"15px",color:C.gold,marginBottom:"2px"}},"Round ",(()=>{const rs=new Set();qps.forEach(p=>(p.scoreHistory||[]).filter(r=>r.questId===q.id).forEach(r=>rs.add(r.roundNumber)));return Math.max(1,rs.size);})()," · Hole ",q.hole,"/9"),
                       React.createElement('div',{style:{fontFamily:BF,fontSize:"11px",color:C.greyDim,marginBottom:"4px"}},q.startDate||""),
                       q.nextAdventureCard&&React.createElement('div',{style:{fontFamily:BF,fontSize:"11px",color:C.orange,marginBottom:"4px"}},"⚡ Next: ",q.nextAdventureCard.title),
                       React.createElement('div',{style:{display:"flex",flexWrap:"wrap",gap:"6px",marginBottom:"6px"}},
@@ -2612,7 +2633,11 @@ function App(){
             const tc=draw(tD,setTD,TREASURE_CARDS);
             setCard(tc);setCardDeck("treasure");setCardPhase("read");
             setShowTestCenter(false);
-          },style:{width:"100%",padding:"18px",background:C.gold+"18",border:"4px solid "+C.gold,borderRadius:0,color:C.gold,fontFamily:BF,fontSize:"15px",cursor:"pointer",marginBottom:"20px",letterSpacing:2}},"🗝️ GIVE TREASURE — DRAW + ASSIGN"),
+          },style:{width:"100%",padding:"18px",background:C.gold+"18",border:"4px solid "+C.gold,borderRadius:0,color:C.gold,fontFamily:BF,fontSize:"15px",cursor:"pointer",marginBottom:"12px",letterSpacing:2}},"🗝️ GIVE TREASURE — DRAW + ASSIGN"),
+          React.createElement('button',{onClick:function(){
+            openMerchant();
+            setShowTestCenter(false);
+          },style:{width:"100%",padding:"18px",background:C.teal+"18",border:"4px solid "+C.teal,borderRadius:0,color:C.teal,fontFamily:BF,fontSize:"15px",cursor:"pointer",marginBottom:"20px",letterSpacing:2}},"🧳 TEST MERCHANT — OPEN WARES"),
           React.createElement('button',{onClick:()=>setShowTestCenter(false),style:{width:"100%",padding:"12px",background:"transparent",border:"2px solid "+C.greyDim,borderRadius:0,color:C.greyDim,fontFamily:BF,fontSize:"13px",cursor:"pointer"}},"← CLOSE")
         ),
 
@@ -2850,7 +2875,7 @@ function App(){
       React.createElement('div',{style:{textAlign:"center",marginBottom:"20px"}},
         React.createElement('div',{style:{fontSize:"40px",marginBottom:"8px"}},"⛺"),
         React.createElement('div',{style:{fontFamily:BF,fontSize:"22px",color:C.cyan,textShadow:OLH,letterSpacing:3}},"END OF ROUND"),
-        React.createElement('div',{style:{fontFamily:BF,fontSize:"13px",color:C.greyDim,marginTop:"4px"}},"Round ",((activeQuest&&activeQuest.currentRound)||1)," complete")
+        React.createElement('div',{style:{fontFamily:BF,fontSize:"13px",color:C.greyDim,marginTop:"4px"}},"Round ",displayRound," complete")
       ),
       // Rest and recharge
       React.createElement('div',{style:{background:C.green+"12",border:"2px solid "+C.green+"44",borderRadius:0,padding:"14px 16px",marginBottom:"10px"}},
@@ -2932,7 +2957,7 @@ function App(){
         setShowCamp(false);
         startNewRound(true);
       },style:{width:"100%",padding:"16px 0",background:C.cyan,border:"4px solid "+C.cyan,borderRadius:0,color:C.bgDark,fontFamily:BF,fontSize:"15px",cursor:"pointer",letterSpacing:1,marginBottom:"10px"}},
-        "⛺ BEGIN ROUND "+(((activeQuest&&activeQuest.currentRound)||1)+1)
+        "⛺ BEGIN ROUND "+(displayRound+1)
       ),
       React.createElement('button',{onClick:()=>{if(activeBoss)regenBoss();setCampDiscBuy(null);setShowCamp(false);setEndSessionConfirm(false);},style:{width:"100%",padding:"12px 0",background:"transparent",border:"2px solid "+C.greyDim,borderRadius:0,color:C.greyDim,fontFamily:BF,fontSize:"13px",cursor:"pointer",marginBottom:"8px"}},"← BACK TO QUEST"),
       !endSessionConfirm&&React.createElement('button',{onClick:()=>setEndSessionConfirm(true),style:{width:"100%",padding:"10px 0",background:"transparent",border:"1px solid "+C.red+"33",borderRadius:0,color:C.red+"88",fontFamily:BF,fontSize:"11px",cursor:"pointer",marginBottom:"6px"}},"END SESSION — SAVE & EXIT"),
@@ -2952,7 +2977,9 @@ function App(){
             setShowCamp(false);
             setEndSessionConfirm(false);
             startNewRound(false);
-            backToManager();
+            // Don't call backToManager — it reads stale hole state and overwrites hole:1
+            setEndRoundConfirm(false);
+            setQuestView("manager");
           },style:{flex:1,padding:"10px 0",background:C.red+"22",border:"2px solid "+C.red+"66",borderRadius:0,color:C.red,fontFamily:BF,fontSize:"12px",cursor:"pointer"}},"CONFIRM — SAVE & EXIT"),
           React.createElement('button',{onClick:()=>setEndSessionConfirm(false),style:{flex:1,padding:"10px 0",background:"transparent",border:"1px solid "+C.greyDim,borderRadius:0,color:C.greyDim,fontFamily:BF,fontSize:"12px",cursor:"pointer"}},"CANCEL")
         )
@@ -2967,6 +2994,77 @@ function App(){
       ),
       React.createElement('div',{style:{fontFamily:BF,fontSize:"11px",color:C.greyDim}},"Long press the text below to select all, then copy."),
       React.createElement('textarea',{readOnly:true,value:exportText,onClick:function(e){e.target.select();},style:{flex:1,background:C.bgDark,border:`2px solid ${C.borderBright}`,borderRadius:0,color:C.whiteDim,fontFamily:"'Courier New',monospace",fontSize:"11px",padding:"12px",resize:"none",lineHeight:1.6}})
+    ),
+
+    // ── MERCHANT POPUP ────────────────────────────────────────────────────────
+    merchantWares&&React.createElement('div',{style:{position:"fixed",inset:0,background:"rgba(0,0,0,0.92)",zIndex:1100,overflowY:"auto",padding:"16px 16px 40px"}},
+      React.createElement('div',{style:{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:"14px"}},
+        React.createElement('div',{style:{fontFamily:BF,fontSize:"16px",color:C.gold,letterSpacing:2}},"🧳 TRAVELING MERCHANT"),
+        React.createElement('button',{onClick:()=>setMerchantWares(null),style:{padding:"6px 14px",background:"transparent",border:`2px solid ${C.borderBright}`,borderRadius:0,color:C.gold,fontFamily:BF,fontSize:"13px",cursor:"pointer"}},"CLOSE")
+      ),
+      // Tokens row
+      React.createElement('div',{style:{background:C.bgCard,border:`2px solid ${C.cyan}44`,padding:"10px 14px",marginBottom:"12px"}},
+        React.createElement('div',{style:{fontFamily:BF,fontSize:"13px",color:C.cyan,marginBottom:"8px"}},"🛡 ADVANTAGE TOKENS — 2gp each"),
+        React.createElement('div',{style:{display:"flex",flexDirection:"column",gap:"6px"}},
+          questPlayersFromQuest.map(function(p){
+            const isMerchant=p.cls&&p.cls.name==="Merchant";
+            const cost=isMerchant?1:2;
+            const canAfford=p.gold>=cost;
+            return React.createElement('div',{key:p.id,style:{display:"flex",alignItems:"center",gap:"8px"}},
+              React.createElement('span',{style:{fontSize:"14px"}},(p.cls&&p.cls.icon)||"❓"),
+              React.createElement('div',{style:{fontFamily:BF,fontSize:"12px",color:(p.cls&&p.cls.color)||C.gold,flex:1}},p.name," ",React.createElement('span',{style:{color:C.greyDim}},"💰",p.gold),isMerchant?" (half price)":""),
+              React.createElement('button',{onClick:function(){if(canAfford){adj(p.id,"gold",-cost);adj(p.id,"tokens",1);}},style:{padding:"5px 12px",background:canAfford?C.cyan+"18":"transparent",border:"2px solid "+(canAfford?C.cyan:C.greyDim),borderRadius:0,color:canAfford?C.cyan:C.greyDim,fontFamily:BF,fontSize:"11px",cursor:canAfford?"pointer":"default"}},"-",cost,"gp → 🛡")
+            );
+          })
+        )
+      ),
+      // Wares
+      React.createElement('div',{style:{fontFamily:BF,fontSize:"12px",color:C.greyDim,letterSpacing:2,marginBottom:"8px"}},"WARES"),
+      merchantWares.items.map(function(item,idx){
+        const assigning=merchantWares.assignItem===idx;
+        return React.createElement('div',{key:idx,style:{background:C.bgCard,border:`2px solid ${C.gold}44`,padding:"12px 14px",marginBottom:"10px"}},
+          React.createElement('div',{style:{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:"4px"}},
+            React.createElement('div',{style:{fontFamily:BF,fontSize:"14px",color:C.gold}},item.title),
+            React.createElement('div',{style:{display:"flex",gap:"8px",alignItems:"center"}},
+              React.createElement('div',{style:{fontFamily:BF,fontSize:"11px",color:item.consumable?C.red:C.teal}},item.consumable?"USE":"REUSE"),
+              React.createElement('div',{style:{fontFamily:BF,fontSize:"13px",color:C.goldDim}},item.value,"gp")
+            )
+          ),
+          React.createElement('div',{style:{fontFamily:BF,fontSize:"12px",color:C.whiteDim,marginBottom:"10px",lineHeight:1.5}},item.effect),
+          !assigning&&React.createElement('div',{style:{display:"flex",flexDirection:"column",gap:"6px"}},
+            questPlayersFromQuest.map(function(p){
+              const isMerchant=p.cls&&p.cls.name==="Merchant";
+              const cost=isMerchant?Math.ceil(item.value/2):item.value;
+              const canAfford=p.gold>=cost;
+              // Check for unspent Thieves Tools
+              const thievesIdx=(p.treasures||[]).findIndex(function(t){return typeof t==="object"&&t.title==="Thieves Tools"&&!t.spent;});
+              const hasThievesTools=thievesIdx>=0;
+              const canUseTools=hasThievesTools;
+              return React.createElement('div',{key:p.id,style:{display:"flex",alignItems:"center",gap:"6px",marginBottom:"2px"}},
+                React.createElement('button',{onClick:function(){
+                  if(!canAfford) return;
+                  adj(p.id,"gold",-cost);
+                  _setAndSavePlayers(function(ps){return ps.map(function(pl){
+                    if(pl.id!==p.id) return pl;
+                    return{...pl,treasures:[...(pl.treasures||[]),item]};
+                  });});
+                },style:{flex:1,padding:"8px 12px",background:canAfford?C.gold+"12":"transparent",border:"2px solid "+(canAfford?C.gold:C.greyDim),borderRadius:0,color:canAfford?C.gold:C.greyDim,fontFamily:BF,fontSize:"12px",cursor:canAfford?"pointer":"default",textAlign:"left",display:"flex",justifyContent:"space-between"}},
+                  React.createElement('span',null,(p.cls&&p.cls.icon)||"❓"," ",p.name,isMerchant?" (half)":""),
+                  React.createElement('span',null,"-",cost,"gp 💰",p.gold)
+                ),
+                canUseTools&&React.createElement('button',{onClick:function(){
+                  _setAndSavePlayers(function(ps){return ps.map(function(pl){
+                    if(pl.id!==p.id) return pl;
+                    const newTreasures=[...(pl.treasures||[])];
+                    newTreasures[thievesIdx]={...newTreasures[thievesIdx],spent:true};
+                    return{...pl,treasures:[...newTreasures,item]};
+                  });});
+                },style:{padding:"8px 10px",background:C.purple+"22",border:"2px solid "+C.purple,borderRadius:0,color:C.purple,fontFamily:BF,fontSize:"11px",cursor:"pointer",whiteSpace:"nowrap"}},"🔑 FREE")
+              );
+            })
+          )
+        );
+      })
     ),
 
     // ── TAB BAR ──────────────────────────────────────────────────────────────
