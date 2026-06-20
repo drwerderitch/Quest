@@ -1,4 +1,4 @@
-# QuestRound
+# Disc Golf Quest
 disc golf adventure companion app
 RULES SUMMARY
 
